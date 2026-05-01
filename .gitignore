@@ -1,0 +1,43 @@
+# Build outputs are generated from CMake and should not be committed.
+# Upstream: developers run CMake or Visual Studio locally.
+# Downstream: source-only checkouts rebuild these folders when needed.
+build/
+cmake-build-*/
+out/
+
+# Visual Studio and editor folders are machine-local state.
+# Upstream: IDEs create these folders during local development.
+# Downstream: repository users should keep their own local settings.
+.vs/
+.vscode/
+.idea/
+
+# Compiled binaries and intermediate objects are generated artifacts.
+# Upstream: the compiler and linker create these files.
+# Downstream: the repository stores source files instead of build products.
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk
+*.exp
+
+# CMake generated files are tied to one local build directory.
+# Upstream: CMake creates them during configuration.
+# Downstream: each developer regenerates them for their own environment.
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Temporary logs are local diagnostics.
+# Upstream: tools and manual runs may create them.
+# Downstream: committed source should not depend on them.
+*.log
+
+# Office lock files are temporary and can break collaboration if committed.
+# Upstream: Word or PowerPoint creates these files while a document is open.
+# Downstream: the repository keeps the real documents, not editor locks.
+~$*.docx
+~$*.pptx

@@ -1,0 +1,13 @@
+
+Visual Studio 2019 详细安装教程
+https://blog.51cto.com/u_16225555/7085535
+
+
+VS2019以及MFC的安装
+https://blog.csdn.net/Mrweng1996/article/details/103202297
+
+基于VS2019开始C++之第一个MFC程序
+https://blog.51cto.com/u_15459030/4811106
+
+
+请大家在实习之前，按上述方法安装好vs2019、能编译运行MFC程序

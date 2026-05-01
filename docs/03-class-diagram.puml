@@ -1,0 +1,117 @@
+---
+
+# 6. 文件三：`docs/architecture/03-class-diagram.puml`
+
+```plantuml
+@startuml
+title 三维 GIS 综合实习 Clean Architecture 类图
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+
+package "UI Layer" {
+  class MainWindow
+  class ViewportWidget
+  class FileDialogAdapter
+}
+
+package "Application Layer" {
+  class LoadSingleModelUseCase
+  class LoadTerrainUseCase
+  class BuildTerrainMeshUseCase
+  class LoadBatchModelsUseCase
+  class AddModelToSceneUseCase
+  class AddTerrainToSceneUseCase
+
+  class LoadModelRequest
+  class LoadModelResult
+  class LoadTerrainRequest
+  class LoadTerrainResult
+  class BuildTerrainMeshRequest
+  class BuildTerrainMeshResult
+  class LoadBatchModelsRequest
+  class LoadBatchModelsResult
+}
+
+package "Domain Layer" {
+  class Vec2
+  class Vec3
+  class Vertex
+  class Triangle
+  class Mesh
+  class TextureImage
+  class TerrainRaster
+  class TerrainMesh
+  class ModelAsset
+  class Material
+  class Transform
+  class SceneNode
+  class SceneGraph
+
+  class TerrainMeshBuilder
+  class NormalCalculator
+  class TextureCoordinateCalculator
+
+  interface IModelLoader
+  interface IDemReader
+  interface IImageReader
+  interface IModelBatchRepository
+  interface ISceneRenderer
+}
+
+package "Infrastructure Layer" {
+  class ObjModelLoader
+  class GeoTiffDemReader
+  class GeoTiffImageReader
+  class FileSystemModelBatchRepository
+  class OpenGLSceneRenderer
+  class SimpleLogger
+}
+
+MainWindow --> LoadSingleModelUseCase
+MainWindow --> LoadTerrainUseCase
+MainWindow --> BuildTerrainMeshUseCase
+MainWindow --> LoadBatchModelsUseCase
+MainWindow --> AddModelToSceneUseCase
+MainWindow --> AddTerrainToSceneUseCase
+ViewportWidget --> ISceneRenderer
+
+LoadSingleModelUseCase --> IModelLoader
+LoadSingleModelUseCase --> ModelAsset
+
+LoadTerrainUseCase --> IDemReader
+LoadTerrainUseCase --> IImageReader
+LoadTerrainUseCase --> TerrainRaster
+LoadTerrainUseCase --> TextureImage
+
+BuildTerrainMeshUseCase --> TerrainMeshBuilder
+BuildTerrainMeshUseCase --> TerrainMesh
+
+LoadBatchModelsUseCase --> IModelBatchRepository
+LoadBatchModelsUseCase --> IModelLoader
+
+AddModelToSceneUseCase --> SceneGraph
+AddTerrainToSceneUseCase --> SceneGraph
+
+TerrainMeshBuilder --> NormalCalculator
+TerrainMeshBuilder --> TextureCoordinateCalculator
+TerrainMeshBuilder --> TerrainRaster
+TerrainMeshBuilder --> TextureImage
+TerrainMeshBuilder --> TerrainMesh
+
+ObjModelLoader ..|> IModelLoader
+GeoTiffDemReader ..|> IDemReader
+GeoTiffImageReader ..|> IImageReader
+FileSystemModelBatchRepository ..|> IModelBatchRepository
+OpenGLSceneRenderer ..|> ISceneRenderer
+
+SceneGraph o-- SceneNode
+SceneNode --> Mesh
+SceneNode --> TextureImage
+TerrainMesh --> Mesh
+TerrainMesh --> TextureImage
+ModelAsset --> Mesh
+ModelAsset --> Material
+ModelAsset --> Transform
+
+@enduml

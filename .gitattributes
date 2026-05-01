@@ -1,0 +1,22 @@
+# Source files are normalized as text for portable diffs.
+# Upstream: developers edit these files on different Windows shells and IDEs.
+# Downstream: Git stores them consistently in the repository.
+*.cpp text
+*.h text
+*.md text
+*.txt text
+*.puml text
+*.cmake text
+CMakeLists.txt text
+
+# GIS, Office, and point-cloud assets are binary or data-heavy artifacts.
+# Upstream: course tools and GIS software create these files.
+# Downstream: Git must not rewrite their bytes or line endings.
+*.tif binary
+*.tiff binary
+*.ply binary
+*.docx binary
+*.pptx binary
+*.png binary
+*.jpg binary
+*.jpeg binary

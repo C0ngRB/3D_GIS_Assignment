@@ -1,0 +1,111 @@
+@startuml
+title 时序图 1：加载单个 OBJ 模型
+
+actor User
+participant MainWindow
+participant LoadSingleModelUseCase
+participant IModelLoader
+participant ObjModelLoader
+participant AddModelToSceneUseCase
+participant SceneGraph
+participant ViewportWidget
+participant ISceneRenderer
+
+User -> MainWindow: 选择 OBJ 文件
+MainWindow -> LoadSingleModelUseCase: execute(request)
+LoadSingleModelUseCase -> IModelLoader: load(filePath)
+IModelLoader -> ObjModelLoader: load(filePath)
+ObjModelLoader --> IModelLoader: ModelAsset
+IModelLoader --> LoadSingleModelUseCase: ModelAsset
+LoadSingleModelUseCase --> MainWindow: LoadModelResult
+
+MainWindow -> AddModelToSceneUseCase: execute(model)
+AddModelToSceneUseCase -> SceneGraph: addNode(modelNode)
+AddModelToSceneUseCase --> MainWindow: success
+
+MainWindow -> ViewportWidget: refresh()
+ViewportWidget -> ISceneRenderer: render()
+
+@enduml
+
+
+@startuml
+title 时序图 2：加载 DEM 和影像并构建地形模型
+
+actor User
+participant MainWindow
+participant LoadTerrainUseCase
+participant IDemReader
+participant IImageReader
+participant BuildTerrainMeshUseCase
+participant TerrainMeshBuilder
+participant NormalCalculator
+participant TextureCoordinateCalculator
+participant AddTerrainToSceneUseCase
+participant SceneGraph
+participant ViewportWidget
+participant ISceneRenderer
+
+User -> MainWindow: 选择 DEM 和影像
+MainWindow -> LoadTerrainUseCase: execute(demPath, imagePath)
+
+LoadTerrainUseCase -> IDemReader: read(demPath)
+IDemReader --> LoadTerrainUseCase: TerrainRaster
+
+LoadTerrainUseCase -> IImageReader: read(imagePath)
+IImageReader --> LoadTerrainUseCase: TextureImage
+
+LoadTerrainUseCase --> MainWindow: LoadTerrainResult
+
+MainWindow -> BuildTerrainMeshUseCase: execute(dem, image, samplingStep, verticalScale)
+BuildTerrainMeshUseCase -> TerrainMeshBuilder: build(dem, image, samplingStep, verticalScale)
+TerrainMeshBuilder -> NormalCalculator: computeVertexNormals(mesh)
+TerrainMeshBuilder -> TextureCoordinateCalculator: computeTerrainTexCoords(mesh)
+TerrainMeshBuilder --> BuildTerrainMeshUseCase: TerrainMesh
+BuildTerrainMeshUseCase --> MainWindow: BuildTerrainMeshResult
+
+MainWindow -> AddTerrainToSceneUseCase: execute(terrainMesh)
+AddTerrainToSceneUseCase -> SceneGraph: addNode(terrainNode)
+AddTerrainToSceneUseCase --> MainWindow: success
+
+MainWindow -> ViewportWidget: refresh()
+ViewportWidget -> ISceneRenderer: render()
+
+@enduml
+
+
+@startuml
+title 时序图 3：批量加载宋卿体育馆模型
+
+actor User
+participant MainWindow
+participant LoadBatchModelsUseCase
+participant IModelBatchRepository
+participant IModelLoader
+participant AddModelToSceneUseCase
+participant SceneGraph
+participant ViewportWidget
+participant ISceneRenderer
+
+User -> MainWindow: 选择模型文件夹
+MainWindow -> LoadBatchModelsUseCase: execute(folderPath, extensions, recursive)
+
+LoadBatchModelsUseCase -> IModelBatchRepository: findModelFiles(folderPath)
+IModelBatchRepository --> LoadBatchModelsUseCase: modelFilePaths
+
+loop each OBJ file
+  LoadBatchModelsUseCase -> IModelLoader: load(filePath)
+  IModelLoader --> LoadBatchModelsUseCase: ModelAsset or error
+end
+
+LoadBatchModelsUseCase --> MainWindow: LoadBatchModelsResult
+
+loop each loaded model
+  MainWindow -> AddModelToSceneUseCase: execute(model)
+  AddModelToSceneUseCase -> SceneGraph: addNode(modelNode)
+end
+
+MainWindow -> ViewportWidget: refresh()
+ViewportWidget -> ISceneRenderer: render()
+
+@enduml
