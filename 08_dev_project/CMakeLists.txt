@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # ThreeDGISAssignment is the root project for the 3D GIS assignment.
 # Upstream: source files under the four architecture layers.
-# Downstream: later batches will add graphics adapters and desktop UI integration.
+# Downstream: later batches will add full desktop UI integration.
 project(ThreeDGISAssignment LANGUAGES CXX)
 
 # C++17 is the common language level for all project code.
@@ -35,6 +35,7 @@ find_library(GDAL_LIBRARY
 # Downstream: later UI work can replace the console check with a real desktop window entry.
 add_executable(ThreeDGISApp
     src/ui/main.cpp
+    src/ui/ViewportWidget.cpp
     src/application/usecases/AddModelToSceneUseCase.cpp
     src/application/usecases/AddTerrainToSceneUseCase.cpp
     src/application/usecases/BuildTerrainMeshUseCase.cpp
@@ -46,6 +47,7 @@ add_executable(ThreeDGISApp
     src/infrastructure/model/ObjModelLoader.cpp
     src/infrastructure/raster/GeoTiffDemReader.cpp
     src/infrastructure/raster/GeoTiffImageReader.cpp
+    src/infrastructure/rendering/OpenGLSceneRenderer.cpp
 )
 
 # The src folder is the include root for domain/... headers.
@@ -77,6 +79,7 @@ endif()
 # Upstream: generated Domain data structures, ports, use cases, and adapters.
 # Downstream: Visual Studio shows the architecture skeleton in the target tree.
 target_sources(ThreeDGISApp PRIVATE
+    src/ui/ViewportWidget.h
     src/application/usecases/AddModelToSceneUseCase.h
     src/application/usecases/AddTerrainToSceneUseCase.h
     src/application/usecases/BuildTerrainMeshUseCase.h
@@ -106,4 +109,5 @@ target_sources(ThreeDGISApp PRIVATE
     src/infrastructure/model/ObjModelLoader.h
     src/infrastructure/raster/GeoTiffDemReader.h
     src/infrastructure/raster/GeoTiffImageReader.h
+    src/infrastructure/rendering/OpenGLSceneRenderer.h
 )

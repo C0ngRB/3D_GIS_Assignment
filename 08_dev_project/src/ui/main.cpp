@@ -17,13 +17,15 @@
 #include "infrastructure/model/ObjModelLoader.h"
 #include "infrastructure/raster/GeoTiffDemReader.h"
 #include "infrastructure/raster/GeoTiffImageReader.h"
+#include "infrastructure/rendering/OpenGLSceneRenderer.h"
+#include "ui/ViewportWidget.h"
 
 // printUsage shows the current command-line verification modes.
 // Upstream: main calls it when the user does not pass enough paths.
 // Downstream: developers can run quick checks before real UI integration.
 void printUsage()
 {
-    std::cout << "ThreeDGIS Batch D is ready." << std::endl;
+    std::cout << "ThreeDGIS Batch E is ready." << std::endl;
     std::cout << "Usage for OBJ: ThreeDGISApp.exe <model.obj>" << std::endl;
     std::cout << "Usage for terrain: ThreeDGISApp.exe <dem.tif> <image.tif> [samplingStep] [verticalScale]" << std::endl;
 }
@@ -53,7 +55,7 @@ float parseVerticalScale(int argc, char* argv[])
 }
 
 // isNormalNonZero checks whether a vertex normal has useful length.
-// Upstream: printTerrainMeshDiagnostics passes the first terrain vertex normal.
+// Upstream: printTerrainMeshDiagnostics passes terrain vertex normals.
 // Downstream: command-line verification reports whether normal calculation succeeded.
 bool isNormalNonZero(const gis::domain::Vec3& normal)
 {
@@ -126,9 +128,41 @@ void printTerrainMeshDiagnostics(const gis::domain::TerrainMesh& terrainMesh)
     std::cout << "Texture coordinates in [0,1]: " << (areTexCoordsInRange(terrainMesh) ? "yes" : "no") << std::endl;
 }
 
-// runModelLoadCheck verifies the Batch B single-model workflow.
+// printRendererStats writes renderer adapter diagnostics to stdout.
+// Upstream: model and terrain command checks call it after ViewportWidget::refresh.
+// Downstream: Batch E verification confirms drawable, texture, light, and camera state.
+void printRendererStats(const gis::infrastructure::RenderFrameStats& stats)
+{
+    std::cout << "Renderer viewport: " << stats.viewportWidth << " x " << stats.viewportHeight << std::endl;
+    std::cout << "Renderer drawables: " << stats.drawableCount << std::endl;
+    std::cout << "Renderer vertices: " << stats.vertexCount << std::endl;
+    std::cout << "Renderer triangles: " << stats.triangleCount << std::endl;
+    std::cout << "Renderer textured drawables: " << stats.texturedDrawableCount << std::endl;
+    std::cout << "Renderer lit drawables: " << stats.litDrawableCount << std::endl;
+    std::cout << "Renderer skipped nodes: " << stats.skippedNodeCount << std::endl;
+    std::cout << "Camera yaw/pitch/distance: "
+              << stats.camera.yawDegrees << ", "
+              << stats.camera.pitchDegrees << ", "
+              << stats.camera.distance << std::endl;
+    std::cout << "Camera pan: " << stats.camera.panX << ", " << stats.camera.panY << std::endl;
+}
+
+// refreshViewport prepares renderer state for the current scene.
+// Upstream: command checks call this after adding nodes to SceneGraph.
+// Downstream: OpenGLSceneRenderer stores drawable snapshots and frame stats.
+void refreshViewport(
+    gis::domain::SceneGraph& scene,
+    gis::infrastructure::OpenGLSceneRenderer& renderer,
+    gis::ui::ViewportWidget& viewport)
+{
+    viewport.resize(1280, 720);
+    viewport.refresh();
+    printRendererStats(renderer.lastFrameStats());
+}
+
+// runModelLoadCheck verifies the Batch B single-model workflow and Batch E renderer adapter.
 // Upstream: main passes one OBJ path.
-// Downstream: the loaded model is inserted into the SceneGraph.
+// Downstream: the loaded model is inserted into the SceneGraph and prepared for drawing.
 int runModelLoadCheck(const char* modelPath)
 {
     gis::domain::SceneGraph scene;
@@ -159,12 +193,16 @@ int runModelLoadCheck(const char* modelPath)
     std::cout << "Triangles: " << loadResult.model.mesh.triangles.size() << std::endl;
     std::cout << "Scene nodes: " << scene.nodes.size() << std::endl;
     std::cout << "Inserted node index: " << addResult.nodeIndex << std::endl;
+
+    gis::infrastructure::OpenGLSceneRenderer renderer;
+    gis::ui::ViewportWidget viewport(scene, renderer);
+    refreshViewport(scene, renderer, viewport);
     return 0;
 }
 
-// runTerrainBuildCheck verifies DEM/image loading, terrain mesh construction, and scene insertion.
+// runTerrainBuildCheck verifies DEM/image loading, terrain mesh construction, scene insertion, and rendering.
 // Upstream: main passes DEM and image GeoTIFF paths plus optional build parameters.
-// Downstream: later graphics adapters can render the terrain node from SceneGraph.
+// Downstream: renderer adapter prepares the terrain node with texture and lighting metadata.
 int runTerrainBuildCheck(const char* demPath, const char* imagePath, int samplingStep, float verticalScale)
 {
     gis::domain::SceneGraph scene;
@@ -221,12 +259,28 @@ int runTerrainBuildCheck(const char* demPath, const char* imagePath, int samplin
 
     std::cout << "Scene nodes: " << scene.nodes.size() << std::endl;
     std::cout << "Inserted terrain node index: " << addResult.nodeIndex << std::endl;
+
+    gis::infrastructure::OpenGLSceneRenderer renderer;
+    gis::ui::ViewportWidget viewport(scene, renderer);
+    refreshViewport(scene, renderer, viewport);
+
+    viewport.orbit(15.0F, -5.0F);
+    viewport.zoom(0.8F);
+    viewport.pan(2.0F, -1.0F);
+    viewport.refresh();
+    std::cout << "After interaction:" << std::endl;
+    printRendererStats(renderer.lastFrameStats());
+
+    viewport.resetView();
+    viewport.refresh();
+    std::cout << "After reset:" << std::endl;
+    printRendererStats(renderer.lastFrameStats());
     return 0;
 }
 
 // main wires current command-line checks until the real desktop UI is added.
-// Upstream: command-line arguments choose OBJ or terrain loading/build verification.
-// Downstream: Application use cases keep parsing, terrain construction, and validation out of UI widgets.
+// Upstream: command-line arguments choose OBJ or terrain loading/build/render verification.
+// Downstream: Application use cases and renderer ports keep business logic out of UI widgets.
 int main(int argc, char* argv[])
 {
     try {
