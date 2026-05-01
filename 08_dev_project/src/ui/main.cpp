@@ -2,6 +2,7 @@
 // Upstream: CMakeLists.txt creates the ThreeDGISApp target.
 // Downstream: later UI batches will connect these use cases to real widgets.
 
+#include <algorithm>
 #include <cmath>
 #include <exception>
 #include <iostream>
@@ -10,10 +11,12 @@
 #include "application/usecases/AddModelToSceneUseCase.h"
 #include "application/usecases/AddTerrainToSceneUseCase.h"
 #include "application/usecases/BuildTerrainMeshUseCase.h"
+#include "application/usecases/LoadBatchModelsUseCase.h"
 #include "application/usecases/LoadSingleModelUseCase.h"
 #include "application/usecases/LoadTerrainUseCase.h"
 #include "domain/scene/SceneGraph.h"
 #include "domain/terrain/TerrainMeshBuilder.h"
+#include "infrastructure/model/FileSystemModelBatchRepository.h"
 #include "infrastructure/model/ObjModelLoader.h"
 #include "infrastructure/raster/GeoTiffDemReader.h"
 #include "infrastructure/raster/GeoTiffImageReader.h"
@@ -25,9 +28,10 @@
 // Downstream: developers can run quick checks before real UI integration.
 void printUsage()
 {
-    std::cout << "ThreeDGIS Batch E is ready." << std::endl;
+    std::cout << "ThreeDGIS Batch F is ready." << std::endl;
     std::cout << "Usage for OBJ: ThreeDGISApp.exe <model.obj>" << std::endl;
     std::cout << "Usage for terrain: ThreeDGISApp.exe <dem.tif> <image.tif> [samplingStep] [verticalScale]" << std::endl;
+    std::cout << "Usage for batch OBJ: ThreeDGISApp.exe --batch <folder> [recursive]" << std::endl;
 }
 
 // parseSamplingStep returns the requested DEM sampling step or a conservative default.
@@ -52,6 +56,19 @@ float parseVerticalScale(int argc, char* argv[])
     }
 
     return std::stof(argv[4]);
+}
+
+// parseRecursiveFlag returns whether batch folder search should include subfolders.
+// Upstream: main passes the optional batch command argument.
+// Downstream: FileSystemModelBatchRepository uses it to choose recursive traversal.
+bool parseRecursiveFlag(int argc, char* argv[])
+{
+    if (argc < 4) {
+        return false;
+    }
+
+    const std::string value = argv[3];
+    return value == "1" || value == "true" || value == "yes" || value == "recursive";
 }
 
 // isNormalNonZero checks whether a vertex normal has useful length.
@@ -130,7 +147,7 @@ void printTerrainMeshDiagnostics(const gis::domain::TerrainMesh& terrainMesh)
 
 // printRendererStats writes renderer adapter diagnostics to stdout.
 // Upstream: model and terrain command checks call it after ViewportWidget::refresh.
-// Downstream: Batch E verification confirms drawable, texture, light, and camera state.
+// Downstream: Batch E/F verification confirms drawable, texture, light, and camera state.
 void printRendererStats(const gis::infrastructure::RenderFrameStats& stats)
 {
     std::cout << "Renderer viewport: " << stats.viewportWidth << " x " << stats.viewportHeight << std::endl;
@@ -147,6 +164,21 @@ void printRendererStats(const gis::infrastructure::RenderFrameStats& stats)
     std::cout << "Camera pan: " << stats.camera.panX << ", " << stats.camera.panY << std::endl;
 }
 
+// printLoadFailures writes a compact list of per-file batch loading failures.
+// Upstream: runBatchModelLoadCheck passes LoadBatchModelsResult::failures.
+// Downstream: command-line verification can confirm partial failure behavior.
+void printLoadFailures(const std::vector<gis::application::ModelLoadFailure>& failures)
+{
+    const std::size_t maxPrintedFailures = std::min<std::size_t>(failures.size(), 5U);
+    for (std::size_t index = 0; index < maxPrintedFailures; ++index) {
+        std::cout << "Batch failure: " << failures[index].filePath << " -> " << failures[index].errorMessage << std::endl;
+    }
+
+    if (failures.size() > maxPrintedFailures) {
+        std::cout << "Batch failures omitted: " << failures.size() - maxPrintedFailures << std::endl;
+    }
+}
+
 // refreshViewport prepares renderer state for the current scene.
 // Upstream: command checks call this after adding nodes to SceneGraph.
 // Downstream: OpenGLSceneRenderer stores drawable snapshots and frame stats.
@@ -160,7 +192,7 @@ void refreshViewport(
     printRendererStats(renderer.lastFrameStats());
 }
 
-// runModelLoadCheck verifies the Batch B single-model workflow and Batch E renderer adapter.
+// runModelLoadCheck verifies the Batch B single-model workflow and renderer adapter.
 // Upstream: main passes one OBJ path.
 // Downstream: the loaded model is inserted into the SceneGraph and prepared for drawing.
 int runModelLoadCheck(const char* modelPath)
@@ -198,6 +230,56 @@ int runModelLoadCheck(const char* modelPath)
     gis::ui::ViewportWidget viewport(scene, renderer);
     refreshViewport(scene, renderer, viewport);
     return 0;
+}
+
+// runBatchModelLoadCheck verifies folder discovery, partial loading, scene insertion, and rendering.
+// Upstream: main passes a model folder and optional recursive flag.
+// Downstream: successful models are added to SceneGraph while failures remain reportable.
+int runBatchModelLoadCheck(const char* folderPath, bool recursive)
+{
+    gis::domain::SceneGraph scene;
+    gis::infrastructure::FileSystemModelBatchRepository modelBatchRepository;
+    gis::infrastructure::ObjModelLoader modelLoader;
+    gis::application::LoadBatchModelsUseCase loadBatchModelsUseCase(modelBatchRepository, modelLoader);
+    gis::application::AddModelToSceneUseCase addModelToSceneUseCase(scene);
+
+    gis::application::LoadBatchModelsRequest request;
+    request.folderPath = folderPath;
+    request.extensions = std::vector<std::string>{".obj"};
+    request.recursive = recursive;
+
+    const gis::application::LoadBatchModelsResult result = loadBatchModelsUseCase.execute(request);
+    if (!result.success) {
+        std::cerr << "Failed to load batch models: " << result.errorMessage << std::endl;
+        printLoadFailures(result.failures);
+        return 1;
+    }
+
+    std::size_t addFailureCount = 0;
+    for (const gis::domain::ModelAsset& model : result.models) {
+        gis::application::AddModelToSceneRequest addRequest;
+        addRequest.model = model;
+
+        const gis::application::AddModelToSceneResult addResult = addModelToSceneUseCase.execute(addRequest);
+        if (!addResult.success) {
+            ++addFailureCount;
+            std::cout << "Scene add failure: " << model.name << " -> " << addResult.errorMessage << std::endl;
+        }
+    }
+
+    std::cout << "Batch folder: " << folderPath << std::endl;
+    std::cout << "Batch recursive: " << (recursive ? "yes" : "no") << std::endl;
+    std::cout << "Batch discovered files: " << result.discoveredFilePaths.size() << std::endl;
+    std::cout << "Batch loaded models: " << result.models.size() << std::endl;
+    std::cout << "Batch load failures: " << result.failures.size() << std::endl;
+    std::cout << "Batch scene add failures: " << addFailureCount << std::endl;
+    std::cout << "Scene nodes: " << scene.nodes.size() << std::endl;
+    printLoadFailures(result.failures);
+
+    gis::infrastructure::OpenGLSceneRenderer renderer;
+    gis::ui::ViewportWidget viewport(scene, renderer);
+    refreshViewport(scene, renderer, viewport);
+    return addFailureCount == 0 ? 0 : 1;
 }
 
 // runTerrainBuildCheck verifies DEM/image loading, terrain mesh construction, scene insertion, and rendering.
@@ -279,11 +361,15 @@ int runTerrainBuildCheck(const char* demPath, const char* imagePath, int samplin
 }
 
 // main wires current command-line checks until the real desktop UI is added.
-// Upstream: command-line arguments choose OBJ or terrain loading/build/render verification.
+// Upstream: command-line arguments choose OBJ, batch OBJ, or terrain verification.
 // Downstream: Application use cases and renderer ports keep business logic out of UI widgets.
 int main(int argc, char* argv[])
 {
     try {
+        if (argc >= 3 && argc <= 4 && std::string(argv[1]) == "--batch") {
+            return runBatchModelLoadCheck(argv[2], parseRecursiveFlag(argc, argv));
+        }
+
         if (argc == 2) {
             return runModelLoadCheck(argv[1]);
         }

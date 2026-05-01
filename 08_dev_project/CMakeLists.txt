@@ -39,11 +39,13 @@ add_executable(ThreeDGISApp
     src/application/usecases/AddModelToSceneUseCase.cpp
     src/application/usecases/AddTerrainToSceneUseCase.cpp
     src/application/usecases/BuildTerrainMeshUseCase.cpp
+    src/application/usecases/LoadBatchModelsUseCase.cpp
     src/application/usecases/LoadSingleModelUseCase.cpp
     src/application/usecases/LoadTerrainUseCase.cpp
     src/domain/geometry/NormalCalculator.cpp
     src/domain/geometry/TextureCoordinateCalculator.cpp
     src/domain/terrain/TerrainMeshBuilder.cpp
+    src/infrastructure/model/FileSystemModelBatchRepository.cpp
     src/infrastructure/model/ObjModelLoader.cpp
     src/infrastructure/raster/GeoTiffDemReader.cpp
     src/infrastructure/raster/GeoTiffImageReader.cpp
@@ -83,6 +85,7 @@ target_sources(ThreeDGISApp PRIVATE
     src/application/usecases/AddModelToSceneUseCase.h
     src/application/usecases/AddTerrainToSceneUseCase.h
     src/application/usecases/BuildTerrainMeshUseCase.h
+    src/application/usecases/LoadBatchModelsUseCase.h
     src/application/usecases/LoadSingleModelUseCase.h
     src/application/usecases/LoadTerrainUseCase.h
     src/domain/math/Vec2.h
@@ -106,6 +109,7 @@ target_sources(ThreeDGISApp PRIVATE
     src/domain/ports/IImageReader.h
     src/domain/ports/IModelBatchRepository.h
     src/domain/ports/ISceneRenderer.h
+    src/infrastructure/model/FileSystemModelBatchRepository.h
     src/infrastructure/model/ObjModelLoader.h
     src/infrastructure/raster/GeoTiffDemReader.h
     src/infrastructure/raster/GeoTiffImageReader.h
