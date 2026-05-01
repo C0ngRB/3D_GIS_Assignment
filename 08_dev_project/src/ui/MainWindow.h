@@ -70,6 +70,21 @@ public:
     // Downstream: ViewportWidget forwards the reset to the renderer.
     UiOperationResult resetView();
 
+    // orbitView rotates the active camera around the scene.
+    // Upstream: desktop window arrow controls pass camera rotation deltas.
+    // Downstream: ViewportWidget forwards the orbit command to the renderer.
+    UiOperationResult orbitView(float deltaYawDegrees, float deltaPitchDegrees);
+
+    // zoomView moves the camera closer or farther from the scene.
+    // Upstream: desktop window zoom controls pass a multiplicative zoom factor.
+    // Downstream: ViewportWidget forwards the zoom command to the renderer.
+    UiOperationResult zoomView(float zoomFactor);
+
+    // panView shifts the camera target on the view plane.
+    // Upstream: desktop window pan controls pass target movement deltas.
+    // Downstream: ViewportWidget forwards the pan command to the renderer.
+    UiOperationResult panView(float deltaX, float deltaY);
+
     // setSamplingStep stores the DEM downsampling interval.
     // Upstream: UI numeric control passes the requested sampling interval.
     // Downstream: buildTerrain sends the value to BuildTerrainMeshUseCase.

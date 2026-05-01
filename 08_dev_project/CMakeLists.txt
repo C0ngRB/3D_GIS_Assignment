@@ -37,6 +37,7 @@ add_executable(ThreeDGISApp
     src/ui/main.cpp
     src/ui/MainWindow.cpp
     src/ui/ViewportWidget.cpp
+    src/ui/Win32DesktopWindow.cpp
     src/application/usecases/AddModelToSceneUseCase.cpp
     src/application/usecases/AddTerrainToSceneUseCase.cpp
     src/application/usecases/BuildTerrainMeshUseCase.cpp
@@ -69,6 +70,19 @@ target_link_libraries(ThreeDGISApp PRIVATE
     ${GDAL_LIBRARY}
 )
 
+# Win32 user interface libraries provide the native desktop window and file dialogs.
+# Upstream: Win32DesktopWindow.cpp calls User32, Comdlg32, Shell32, and Ole32 APIs.
+# Downstream: the same executable can be double-clicked as an interactive app.
+if(WIN32)
+    target_link_libraries(ThreeDGISApp PRIVATE
+        user32
+        gdi32
+        comdlg32
+        shell32
+        ole32
+    )
+endif()
+
 # MinGW builds are linked with their language runtime libraries statically.
 # Upstream: developers may run ThreeDGISApp.exe by double-clicking outside a shell.
 # Downstream: the executable still loads GDAL dynamically from the installed environment.
@@ -85,6 +99,7 @@ endif()
 target_sources(ThreeDGISApp PRIVATE
     src/ui/MainWindow.h
     src/ui/ViewportWidget.h
+    src/ui/Win32DesktopWindow.h
     src/application/usecases/AddModelToSceneUseCase.h
     src/application/usecases/AddTerrainToSceneUseCase.h
     src/application/usecases/BuildTerrainMeshUseCase.h

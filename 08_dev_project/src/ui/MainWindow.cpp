@@ -221,6 +221,36 @@ UiOperationResult MainWindow::resetView()
     return makeSuccess("View reset.");
 }
 
+// orbitView rotates the camera and refreshes renderer snapshots.
+// Upstream: desktop window view controls call this method.
+// Downstream: renderer frame stats and preview drawing reflect the new camera.
+UiOperationResult MainWindow::orbitView(float deltaYawDegrees, float deltaPitchDegrees)
+{
+    viewport_.orbit(deltaYawDegrees, deltaPitchDegrees);
+    refresh();
+    return makeSuccess("View rotated.");
+}
+
+// zoomView zooms the camera and refreshes renderer snapshots.
+// Upstream: desktop window zoom controls call this method.
+// Downstream: renderer frame stats and preview drawing reflect the new camera distance.
+UiOperationResult MainWindow::zoomView(float zoomFactor)
+{
+    viewport_.zoom(zoomFactor);
+    refresh();
+    return makeSuccess("View zoomed.");
+}
+
+// panView pans the camera target and refreshes renderer snapshots.
+// Upstream: desktop window pan controls call this method.
+// Downstream: renderer frame stats and preview drawing reflect the new pan offsets.
+UiOperationResult MainWindow::panView(float deltaX, float deltaY)
+{
+    viewport_.pan(deltaX, deltaY);
+    refresh();
+    return makeSuccess("View panned.");
+}
+
 // setSamplingStep validates and stores the terrain sampling interval.
 // Upstream: UI numeric input provides samplingStep.
 // Downstream: buildTerrain uses samplingStep_ for mesh density.

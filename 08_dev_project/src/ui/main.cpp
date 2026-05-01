@@ -24,6 +24,7 @@
 #include "infrastructure/rendering/OpenGLSceneRenderer.h"
 #include "ui/MainWindow.h"
 #include "ui/ViewportWidget.h"
+#include "ui/Win32DesktopWindow.h"
 
 // printUsage shows the current command-line verification modes.
 // Upstream: main calls it when the user does not pass enough paths.
@@ -35,6 +36,7 @@ void printUsage()
     std::cout << "Usage for terrain: ThreeDGISApp.exe <dem.tif> <image.tif> [samplingStep] [verticalScale]" << std::endl;
     std::cout << "Usage for batch OBJ: ThreeDGISApp.exe --batch <folder> [recursive]" << std::endl;
     std::cout << "Usage for UI demo screenshots: ThreeDGISApp.exe --demo-screenshots <outputFolder> <dataRoot>" << std::endl;
+    std::cout << "Run without arguments to open the interactive desktop app." << std::endl;
 }
 
 // parseSamplingStep returns the requested DEM sampling step or a conservative default.
@@ -456,6 +458,10 @@ int runDemoScreenshots(const std::string& outputFolder, const std::string& dataR
 int main(int argc, char* argv[])
 {
     try {
+        if (argc == 1) {
+            return gis::ui::runWin32DesktopWindow();
+        }
+
         if (argc >= 2 && argc <= 4 && std::string(argv[1]) == "--demo-screenshots") {
             const std::string outputFolder = argc >= 3 ? argv[2] : "07_3d_screenshots";
             const std::string dataRoot = argc >= 4 ? argv[3] : "data";
