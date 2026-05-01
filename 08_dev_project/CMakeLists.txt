@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # ThreeDGISAssignment is the root project for the 3D GIS assignment.
 # Upstream: source files under the four architecture layers.
-# Downstream: later batches will add terrain mesh construction and graphics adapters.
+# Downstream: later batches will add graphics adapters and desktop UI integration.
 project(ThreeDGISAssignment LANGUAGES CXX)
 
 # C++17 is the common language level for all project code.
@@ -31,13 +31,18 @@ find_library(GDAL_LIBRARY
 )
 
 # ThreeDGISApp is the current executable entry.
-# Upstream: UI entry, Application use cases, and Infrastructure adapters.
+# Upstream: UI entry, Application use cases, Domain algorithms, and Infrastructure adapters.
 # Downstream: later UI work can replace the console check with a real desktop window entry.
 add_executable(ThreeDGISApp
     src/ui/main.cpp
     src/application/usecases/AddModelToSceneUseCase.cpp
+    src/application/usecases/AddTerrainToSceneUseCase.cpp
+    src/application/usecases/BuildTerrainMeshUseCase.cpp
     src/application/usecases/LoadSingleModelUseCase.cpp
     src/application/usecases/LoadTerrainUseCase.cpp
+    src/domain/geometry/NormalCalculator.cpp
+    src/domain/geometry/TextureCoordinateCalculator.cpp
+    src/domain/terrain/TerrainMeshBuilder.cpp
     src/infrastructure/model/ObjModelLoader.cpp
     src/infrastructure/raster/GeoTiffDemReader.cpp
     src/infrastructure/raster/GeoTiffImageReader.cpp
@@ -73,16 +78,21 @@ endif()
 # Downstream: Visual Studio shows the architecture skeleton in the target tree.
 target_sources(ThreeDGISApp PRIVATE
     src/application/usecases/AddModelToSceneUseCase.h
+    src/application/usecases/AddTerrainToSceneUseCase.h
+    src/application/usecases/BuildTerrainMeshUseCase.h
     src/application/usecases/LoadSingleModelUseCase.h
     src/application/usecases/LoadTerrainUseCase.h
     src/domain/math/Vec2.h
     src/domain/math/Vec3.h
+    src/domain/geometry/NormalCalculator.h
+    src/domain/geometry/TextureCoordinateCalculator.h
     src/domain/geometry/Vertex.h
     src/domain/geometry/Triangle.h
     src/domain/geometry/Mesh.h
     src/domain/texture/TextureImage.h
     src/domain/terrain/TerrainRaster.h
     src/domain/terrain/TerrainMesh.h
+    src/domain/terrain/TerrainMeshBuilder.h
     src/domain/model/Material.h
     src/domain/model/Transform.h
     src/domain/model/ModelAsset.h
