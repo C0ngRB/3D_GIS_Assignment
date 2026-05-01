@@ -35,6 +35,7 @@ find_library(GDAL_LIBRARY
 # Downstream: later UI work can replace the console check with a real desktop window entry.
 add_executable(ThreeDGISApp
     src/ui/main.cpp
+    src/ui/MainWindow.cpp
     src/ui/ViewportWidget.cpp
     src/application/usecases/AddModelToSceneUseCase.cpp
     src/application/usecases/AddTerrainToSceneUseCase.cpp
@@ -50,6 +51,7 @@ add_executable(ThreeDGISApp
     src/infrastructure/raster/GeoTiffDemReader.cpp
     src/infrastructure/raster/GeoTiffImageReader.cpp
     src/infrastructure/rendering/OpenGLSceneRenderer.cpp
+    src/infrastructure/rendering/SceneScreenshotWriter.cpp
 )
 
 # The src folder is the include root for domain/... headers.
@@ -81,6 +83,7 @@ endif()
 # Upstream: generated Domain data structures, ports, use cases, and adapters.
 # Downstream: Visual Studio shows the architecture skeleton in the target tree.
 target_sources(ThreeDGISApp PRIVATE
+    src/ui/MainWindow.h
     src/ui/ViewportWidget.h
     src/application/usecases/AddModelToSceneUseCase.h
     src/application/usecases/AddTerrainToSceneUseCase.h
@@ -114,4 +117,5 @@ target_sources(ThreeDGISApp PRIVATE
     src/infrastructure/raster/GeoTiffDemReader.h
     src/infrastructure/raster/GeoTiffImageReader.h
     src/infrastructure/rendering/OpenGLSceneRenderer.h
+    src/infrastructure/rendering/SceneScreenshotWriter.h
 )

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <string>
 
@@ -21,6 +22,7 @@
 #include "infrastructure/raster/GeoTiffDemReader.h"
 #include "infrastructure/raster/GeoTiffImageReader.h"
 #include "infrastructure/rendering/OpenGLSceneRenderer.h"
+#include "ui/MainWindow.h"
 #include "ui/ViewportWidget.h"
 
 // printUsage shows the current command-line verification modes.
@@ -28,10 +30,11 @@
 // Downstream: developers can run quick checks before real UI integration.
 void printUsage()
 {
-    std::cout << "ThreeDGIS Batch F is ready." << std::endl;
+    std::cout << "ThreeDGIS Batch G is ready." << std::endl;
     std::cout << "Usage for OBJ: ThreeDGISApp.exe <model.obj>" << std::endl;
     std::cout << "Usage for terrain: ThreeDGISApp.exe <dem.tif> <image.tif> [samplingStep] [verticalScale]" << std::endl;
     std::cout << "Usage for batch OBJ: ThreeDGISApp.exe --batch <folder> [recursive]" << std::endl;
+    std::cout << "Usage for UI demo screenshots: ThreeDGISApp.exe --demo-screenshots <outputFolder> <dataRoot>" << std::endl;
 }
 
 // parseSamplingStep returns the requested DEM sampling step or a conservative default.
@@ -69,6 +72,26 @@ bool parseRecursiveFlag(int argc, char* argv[])
 
     const std::string value = argv[3];
     return value == "1" || value == "true" || value == "yes" || value == "recursive";
+}
+
+// printUiOperationResult writes one UI action result to stdout.
+// Upstream: runDemoScreenshots calls it after each MainWindow operation.
+// Downstream: verification logs show success, warnings, and failures in order.
+void printUiOperationResult(const gis::ui::UiOperationResult& result)
+{
+    std::cout << (result.success ? "UI success: " : "UI failure: ") << result.message << std::endl;
+    for (const std::string& warning : result.warnings) {
+        std::cout << "UI warning: " << warning << std::endl;
+    }
+}
+
+// requireUiSuccess prints a UI result and returns whether the workflow can continue.
+// Upstream: runDemoScreenshots uses it as a compact guard after each required action.
+// Downstream: demo mode exits early on the first failed UI operation.
+bool requireUiSuccess(const gis::ui::UiOperationResult& result)
+{
+    printUiOperationResult(result);
+    return result.success;
 }
 
 // isNormalNonZero checks whether a vertex normal has useful length.
@@ -162,6 +185,15 @@ void printRendererStats(const gis::infrastructure::RenderFrameStats& stats)
               << stats.camera.pitchDegrees << ", "
               << stats.camera.distance << std::endl;
     std::cout << "Camera pan: " << stats.camera.panX << ", " << stats.camera.panY << std::endl;
+}
+
+// printUiRendererStats writes renderer diagnostics after a UI workflow step.
+// Upstream: runDemoScreenshots calls it after each screenshot is saved.
+// Downstream: Batch G verification confirms the UI produced drawable scene states.
+void printUiRendererStats(const gis::ui::MainWindow& mainWindow)
+{
+    printRendererStats(mainWindow.renderer().lastFrameStats());
+    std::cout << "UI scene nodes: " << mainWindow.scene().nodes.size() << std::endl;
 }
 
 // printLoadFailures writes a compact list of per-file batch loading failures.
@@ -360,12 +392,76 @@ int runTerrainBuildCheck(const char* demPath, const char* imagePath, int samplin
     return 0;
 }
 
+// runDemoScreenshots exercises the Batch G UI facade and writes three report BMP screenshots.
+// Upstream: main calls it for --demo-screenshots verification mode.
+// Downstream: outputFolder receives single_model.bmp, terrain.bmp, and batch_models.bmp.
+int runDemoScreenshots(const std::string& outputFolder, const std::string& dataRoot)
+{
+    const std::filesystem::path outputPath(outputFolder);
+    const std::filesystem::path rootPath(dataRoot);
+    const std::filesystem::path modelPath = rootPath / "mesh_obj" / "Mesh.obj";
+    const std::filesystem::path demPath = rootPath / "dem_image_processed" / "DalianDem_Clip.tif";
+    const std::filesystem::path imagePath = rootPath / "dem_image_processed" / "Dalian_Clip.tif";
+
+    gis::ui::MainWindow mainWindow;
+
+    if (!requireUiSuccess(mainWindow.openSingleModel(modelPath.string()))) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.saveScreenshot((outputPath / "single_model.bmp").string()))) {
+        return 1;
+    }
+    printUiRendererStats(mainWindow);
+
+    if (!requireUiSuccess(mainWindow.clearScene())) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.setSamplingStep(30))) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.setVerticalScale(1.0F))) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.openTerrainData(demPath.string(), imagePath.string()))) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.buildTerrain())) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.resetView())) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.saveScreenshot((outputPath / "terrain.bmp").string()))) {
+        return 1;
+    }
+    printUiRendererStats(mainWindow);
+
+    if (!requireUiSuccess(mainWindow.clearScene())) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.loadBatchModels(rootPath.string(), true))) {
+        return 1;
+    }
+    if (!requireUiSuccess(mainWindow.saveScreenshot((outputPath / "batch_models.bmp").string()))) {
+        return 1;
+    }
+    printUiRendererStats(mainWindow);
+
+    return 0;
+}
+
 // main wires current command-line checks until the real desktop UI is added.
 // Upstream: command-line arguments choose OBJ, batch OBJ, or terrain verification.
 // Downstream: Application use cases and renderer ports keep business logic out of UI widgets.
 int main(int argc, char* argv[])
 {
     try {
+        if (argc >= 2 && argc <= 4 && std::string(argv[1]) == "--demo-screenshots") {
+            const std::string outputFolder = argc >= 3 ? argv[2] : "07_3d_screenshots";
+            const std::string dataRoot = argc >= 4 ? argv[3] : "data";
+            return runDemoScreenshots(outputFolder, dataRoot);
+        }
+
         if (argc >= 3 && argc <= 4 && std::string(argv[1]) == "--batch") {
             return runBatchModelLoadCheck(argv[2], parseRecursiveFlag(argc, argv));
         }
