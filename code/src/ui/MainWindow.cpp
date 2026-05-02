@@ -9,6 +9,7 @@
 #include "application/usecases/AddModelToSceneUseCase.h"
 #include "application/usecases/AddTerrainToSceneUseCase.h"
 #include "application/usecases/BuildTerrainMeshUseCase.h"
+#include "application/usecases/LoadOsgbTilesUseCase.h"
 #include "application/usecases/LoadSingleModelUseCase.h"
 #include "application/usecases/LoadTerrainUseCase.h"
 #include "domain/terrain/TerrainMeshBuilder.h"
@@ -41,6 +42,18 @@ gis::ui::UiOperationResult makeFailure(const std::string& message)
 // Upstream: MainWindow::loadBatchModels passes batch loading failures.
 // Downstream: UI result warnings explain partial batch failures.
 void appendLoadFailures(
+    gis::ui::UiOperationResult& uiResult,
+    const std::vector<gis::application::ModelLoadFailure>& failures)
+{
+    for (const gis::application::ModelLoadFailure& failure : failures) {
+        uiResult.warnings.push_back(failure.filePath + " -> " + failure.errorMessage);
+    }
+}
+
+// appendOsgbFailures appends compact per-tile OSGB import warnings.
+// Upstream: MainWindow::loadOsgbTiles passes conversion or loading failures.
+// Downstream: UI status explains missing osgconv or failed tile loads.
+void appendOsgbFailures(
     gis::ui::UiOperationResult& uiResult,
     const std::vector<gis::application::ModelLoadFailure>& failures)
 {
@@ -198,6 +211,53 @@ UiOperationResult MainWindow::loadBatchModels(const std::string& folderPath, boo
 
     UiOperationResult uiResult = makeSuccess(message.str());
     appendLoadFailures(uiResult, loadResult.failures);
+    return uiResult;
+}
+
+// loadOsgbTiles imports representative OSGB tiles by converting them to OBJ first.
+// Upstream: UI OSGB button passes the selected Songqing OSGB folder.
+// Downstream: converted tile models are inserted into SceneGraph and previewed as wireframes.
+UiOperationResult MainWindow::loadOsgbTiles(const std::string& folderPath, bool recursive, std::size_t maxTiles)
+{
+    gis::application::LoadOsgbTilesUseCase loadOsgbTilesUseCase(batchRepository_, osgbConverter_, modelLoader_);
+    gis::application::LoadOsgbTilesRequest loadRequest;
+    loadRequest.folderPath = folderPath;
+    loadRequest.conversionCacheFolderPath = folderPath + "\\_converted_obj_cache";
+    loadRequest.recursive = recursive;
+    loadRequest.maxTiles = maxTiles;
+
+    const gis::application::LoadOsgbTilesResult loadResult = loadOsgbTilesUseCase.execute(loadRequest);
+    if (!loadResult.success) {
+        UiOperationResult failure = makeFailure("Failed to import OSGB tiles: " + loadResult.errorMessage);
+        appendOsgbFailures(failure, loadResult.failures);
+        return failure;
+    }
+
+    std::size_t addFailureCount = 0;
+    gis::application::AddModelToSceneUseCase addModelToSceneUseCase(sceneGraph_);
+    for (const gis::domain::ModelAsset& model : loadResult.models) {
+        gis::application::AddModelToSceneRequest addRequest;
+        addRequest.model = model;
+        const gis::application::AddModelToSceneResult addResult = addModelToSceneUseCase.execute(addRequest);
+        if (!addResult.success) {
+            ++addFailureCount;
+        }
+    }
+
+    refresh();
+    std::ostringstream message;
+    message << "OSGB discovered " << loadResult.discoveredFilePaths.size()
+            << ", selected " << loadResult.selectedFilePaths.size()
+            << ", converted " << loadResult.convertedObjPaths.size()
+            << ", loaded " << loadResult.models.size()
+            << ", failures " << loadResult.failures.size()
+            << ", scene add failures " << addFailureCount;
+
+    UiOperationResult uiResult = makeSuccess(message.str());
+    appendOsgbFailures(uiResult, loadResult.failures);
+    if (loadResult.discoveredFilePaths.size() > loadResult.selectedFilePaths.size()) {
+        uiResult.warnings.push_back("Only representative coarse OSGB tiles were imported. Increase maxTiles in code for denser detail.");
+    }
     return uiResult;
 }
 

@@ -4,15 +4,18 @@
 // Upstream: command-line demo mode or a later real desktop window calls these operations.
 // Downstream: Application use cases, ViewportWidget, renderer, and screenshot writer do the work.
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
 #include "application/usecases/LoadBatchModelsUseCase.h"
+#include "application/usecases/LoadOsgbTilesUseCase.h"
 #include "domain/scene/SceneGraph.h"
 #include "domain/terrain/TerrainRaster.h"
 #include "domain/texture/TextureImage.h"
 #include "infrastructure/model/FileSystemModelBatchRepository.h"
 #include "infrastructure/model/ObjModelLoader.h"
+#include "infrastructure/model/OsgbToObjConverter.h"
 #include "infrastructure/raster/GeoTiffDemReader.h"
 #include "infrastructure/raster/GeoTiffImageReader.h"
 #include "infrastructure/rendering/OpenGLSceneRenderer.h"
@@ -59,6 +62,11 @@ public:
     // Upstream: UI batch-load command passes a folder and recursive option.
     // Downstream: LoadBatchModelsUseCase handles partial failures and SceneGraph receives successes.
     UiOperationResult loadBatchModels(const std::string& folderPath, bool recursive);
+
+    // loadOsgbTiles imports representative OSGB tiles from a folder.
+    // Upstream: UI OSGB-load command passes a folder, recursive option, and tile limit.
+    // Downstream: OSGB tiles are converted to OBJ, loaded, and added to SceneGraph.
+    UiOperationResult loadOsgbTiles(const std::string& folderPath, bool recursive, std::size_t maxTiles);
 
     // clearScene removes all scene nodes.
     // Upstream: UI clear button calls this when the user wants a fresh scene.
@@ -119,6 +127,7 @@ private:
     gis::domain::SceneGraph sceneGraph_;                                      // sceneGraph_ stores all UI-loaded scene nodes.
     gis::infrastructure::ObjModelLoader modelLoader_;                         // modelLoader_ reads OBJ files for single and batch workflows.
     gis::infrastructure::FileSystemModelBatchRepository batchRepository_;      // batchRepository_ discovers OBJ files in folders.
+    gis::infrastructure::OsgbToObjConverter osgbConverter_;                    // osgbConverter_ converts OSGB tiles through osgconv.
     gis::infrastructure::GeoTiffDemReader demReader_;                         // demReader_ reads GeoTIFF DEM rasters.
     gis::infrastructure::GeoTiffImageReader imageReader_;                     // imageReader_ reads GeoTIFF RGB imagery.
     gis::infrastructure::OpenGLSceneRenderer renderer_;                       // renderer_ stores drawable snapshots and camera state.

@@ -29,6 +29,15 @@ find_library(GDAL_LIBRARY
     HINTS "${DEFAULT_GDAL_ROOT}/lib"
     REQUIRED
 )
+set(GDAL_RUNTIME_BIN_DIR "${DEFAULT_GDAL_ROOT}/bin")
+find_file(GDAL_RUNTIME_DLL
+    NAMES gdal.dll
+    HINTS "${GDAL_RUNTIME_BIN_DIR}"
+    REQUIRED
+)
+file(GLOB GDAL_RUNTIME_DEPENDENCY_DLLS
+    "${GDAL_RUNTIME_BIN_DIR}/*.dll"
+)
 
 # ThreeDGISApp is the current executable entry.
 # Upstream: UI entry, Application use cases, Domain algorithms, and Infrastructure adapters.
@@ -42,6 +51,7 @@ add_executable(ThreeDGISApp
     src/application/usecases/AddTerrainToSceneUseCase.cpp
     src/application/usecases/BuildTerrainMeshUseCase.cpp
     src/application/usecases/LoadBatchModelsUseCase.cpp
+    src/application/usecases/LoadOsgbTilesUseCase.cpp
     src/application/usecases/LoadSingleModelUseCase.cpp
     src/application/usecases/LoadTerrainUseCase.cpp
     src/domain/geometry/NormalCalculator.cpp
@@ -49,6 +59,7 @@ add_executable(ThreeDGISApp
     src/domain/terrain/TerrainMeshBuilder.cpp
     src/infrastructure/model/FileSystemModelBatchRepository.cpp
     src/infrastructure/model/ObjModelLoader.cpp
+    src/infrastructure/model/OsgbToObjConverter.cpp
     src/infrastructure/raster/GeoTiffDemReader.cpp
     src/infrastructure/raster/GeoTiffImageReader.cpp
     src/infrastructure/rendering/OpenGLSceneRenderer.cpp
@@ -68,6 +79,22 @@ target_include_directories(ThreeDGISApp PRIVATE
 # Downstream: DEM and image data are returned as Domain structures.
 target_link_libraries(ThreeDGISApp PRIVATE
     ${GDAL_LIBRARY}
+)
+
+# The GDAL runtime DLL must be discoverable when Visual Studio starts the app.
+# Upstream: GeoTIFF infrastructure links against the GDAL import library.
+# Downstream: the debugger and direct exe runs can resolve gdal.dll at startup.
+set_property(TARGET ThreeDGISApp PROPERTY
+    VS_DEBUGGER_ENVIRONMENT "PATH=${GDAL_RUNTIME_BIN_DIR};%PATH%"
+)
+
+# Copy GDAL and Anaconda runtime DLLs next to the executable as a direct-run fallback.
+# Upstream: CMake finds the Anaconda Library/bin runtime folder.
+# Downstream: ThreeDGISApp.exe can resolve transitive dependencies such as liblzma.dll.
+add_custom_command(TARGET ThreeDGISApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${GDAL_RUNTIME_DEPENDENCY_DLLS}
+        "$<TARGET_FILE_DIR:ThreeDGISApp>"
 )
 
 # Win32 user interface libraries provide the native desktop window and file dialogs.
@@ -104,6 +131,7 @@ target_sources(ThreeDGISApp PRIVATE
     src/application/usecases/AddTerrainToSceneUseCase.h
     src/application/usecases/BuildTerrainMeshUseCase.h
     src/application/usecases/LoadBatchModelsUseCase.h
+    src/application/usecases/LoadOsgbTilesUseCase.h
     src/application/usecases/LoadSingleModelUseCase.h
     src/application/usecases/LoadTerrainUseCase.h
     src/domain/math/Vec2.h
@@ -127,8 +155,10 @@ target_sources(ThreeDGISApp PRIVATE
     src/domain/ports/IImageReader.h
     src/domain/ports/IModelBatchRepository.h
     src/domain/ports/ISceneRenderer.h
+    src/domain/ports/IOsgbConverter.h
     src/infrastructure/model/FileSystemModelBatchRepository.h
     src/infrastructure/model/ObjModelLoader.h
+    src/infrastructure/model/OsgbToObjConverter.h
     src/infrastructure/raster/GeoTiffDemReader.h
     src/infrastructure/raster/GeoTiffImageReader.h
     src/infrastructure/rendering/OpenGLSceneRenderer.h

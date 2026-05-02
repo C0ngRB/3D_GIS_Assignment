@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "domain/geometry/NormalCalculator.h"
@@ -88,6 +89,35 @@ float elevationAt(const gis::domain::TerrainRaster& dem, int row, int column, fl
     return elevation * verticalScale;
 }
 
+// appearsGeographicPixelSize detects degree-based GeoTIFF cell sizes.
+// Upstream: terrainCellSizeMeters passes DEM geotransform metadata.
+// Downstream: degree rasters are converted to meters before mesh construction.
+bool appearsGeographicPixelSize(const gis::domain::TerrainRaster& dem)
+{
+    return std::abs(dem.pixelSizeX) > 0.0 && std::abs(dem.pixelSizeX) < 1.0 &&
+           std::abs(dem.pixelSizeY) > 0.0 && std::abs(dem.pixelSizeY) < 1.0;
+}
+
+// terrainCellSizeMeters returns horizontal cell size in display meters.
+// Upstream: appendVertices passes DEM metadata.
+// Downstream: vertex X/Y use the same meter-like unit as elevation Z.
+std::pair<float, float> terrainCellSizeMeters(const gis::domain::TerrainRaster& dem)
+{
+    const float rawCellSizeX = static_cast<float>(std::abs(dem.pixelSizeX));
+    const float rawCellSizeY = static_cast<float>(std::abs(dem.pixelSizeY));
+    if (!dem.hasGeoTransform || !appearsGeographicPixelSize(dem)) {
+        return std::make_pair(std::max(0.0001F, rawCellSizeX), std::max(0.0001F, rawCellSizeY));
+    }
+
+    const double centerLatitude = dem.originY + dem.pixelSizeY * static_cast<double>(dem.height) * 0.5;
+    const double latitudeRadians = centerLatitude * 3.14159265358979323846 / 180.0;
+    const double metersPerDegreeLatitude = 111320.0;
+    const double metersPerDegreeLongitude = metersPerDegreeLatitude * std::max(0.15, std::cos(latitudeRadians));
+    return std::make_pair(
+        static_cast<float>(std::abs(dem.pixelSizeX) * metersPerDegreeLongitude),
+        static_cast<float>(std::abs(dem.pixelSizeY) * metersPerDegreeLatitude));
+}
+
 // appendVertices creates terrain vertices from sampled DEM rows and columns.
 // Upstream: TerrainMeshBuilder::build provides sample axes and terrain parameters.
 // Downstream: triangle construction indexes the generated vertex grid.
@@ -100,8 +130,9 @@ void appendVertices(
 {
     mesh.vertices.reserve(sampledRows.size() * sampledColumns.size());
 
-    const float cellSizeX = static_cast<float>(std::abs(dem.pixelSizeX));
-    const float cellSizeY = static_cast<float>(std::abs(dem.pixelSizeY));
+    const std::pair<float, float> cellSize = terrainCellSizeMeters(dem);
+    const float cellSizeX = cellSize.first;
+    const float cellSizeY = cellSize.second;
 
     for (const int row : sampledRows) {
         for (const int column : sampledColumns) {

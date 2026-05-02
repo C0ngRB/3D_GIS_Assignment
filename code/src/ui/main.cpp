@@ -13,12 +13,14 @@
 #include "application/usecases/AddTerrainToSceneUseCase.h"
 #include "application/usecases/BuildTerrainMeshUseCase.h"
 #include "application/usecases/LoadBatchModelsUseCase.h"
+#include "application/usecases/LoadOsgbTilesUseCase.h"
 #include "application/usecases/LoadSingleModelUseCase.h"
 #include "application/usecases/LoadTerrainUseCase.h"
 #include "domain/scene/SceneGraph.h"
 #include "domain/terrain/TerrainMeshBuilder.h"
 #include "infrastructure/model/FileSystemModelBatchRepository.h"
 #include "infrastructure/model/ObjModelLoader.h"
+#include "infrastructure/model/OsgbToObjConverter.h"
 #include "infrastructure/raster/GeoTiffDemReader.h"
 #include "infrastructure/raster/GeoTiffImageReader.h"
 #include "infrastructure/rendering/OpenGLSceneRenderer.h"
@@ -35,6 +37,7 @@ void printUsage()
     std::cout << "Usage for OBJ: ThreeDGISApp.exe <model.obj>" << std::endl;
     std::cout << "Usage for terrain: ThreeDGISApp.exe <dem.tif> <image.tif> [samplingStep] [verticalScale]" << std::endl;
     std::cout << "Usage for batch OBJ: ThreeDGISApp.exe --batch <folder> [recursive]" << std::endl;
+    std::cout << "Usage for OSGB tiles: ThreeDGISApp.exe --osgb <folder> [maxTiles]" << std::endl;
     std::cout << "Usage for UI demo screenshots: ThreeDGISApp.exe --demo-screenshots <outputFolder> <dataRoot>" << std::endl;
     std::cout << "Run without arguments to open the interactive desktop app." << std::endl;
 }
@@ -74,6 +77,18 @@ bool parseRecursiveFlag(int argc, char* argv[])
 
     const std::string value = argv[3];
     return value == "1" || value == "true" || value == "yes" || value == "recursive";
+}
+
+// parseMaxTiles returns the requested OSGB tile import limit or a safe default.
+// Upstream: main passes the optional --osgb command argument.
+// Downstream: LoadOsgbTilesUseCase uses it to avoid loading thousands of tiles at once.
+std::size_t parseMaxTiles(int argc, char* argv[])
+{
+    if (argc < 4) {
+        return 4U;
+    }
+
+    return static_cast<std::size_t>(std::stoul(argv[3]));
 }
 
 // printUiOperationResult writes one UI action result to stdout.
@@ -316,6 +331,59 @@ int runBatchModelLoadCheck(const char* folderPath, bool recursive)
     return addFailureCount == 0 ? 0 : 1;
 }
 
+// runOsgbLoadCheck verifies OSGB discovery, conversion, loading, scene insertion, and rendering.
+// Upstream: main passes an OSGB folder and optional tile limit.
+// Downstream: converted OBJ models are added to SceneGraph when osgconv is available.
+int runOsgbLoadCheck(const char* folderPath, std::size_t maxTiles)
+{
+    gis::domain::SceneGraph scene;
+    gis::infrastructure::FileSystemModelBatchRepository modelBatchRepository;
+    gis::infrastructure::OsgbToObjConverter osgbConverter;
+    gis::infrastructure::ObjModelLoader modelLoader;
+    gis::application::LoadOsgbTilesUseCase loadOsgbTilesUseCase(modelBatchRepository, osgbConverter, modelLoader);
+    gis::application::AddModelToSceneUseCase addModelToSceneUseCase(scene);
+
+    gis::application::LoadOsgbTilesRequest request;
+    request.folderPath = folderPath;
+    request.conversionCacheFolderPath = std::string(folderPath) + "\\_converted_obj_cache";
+    request.recursive = true;
+    request.maxTiles = maxTiles;
+
+    const gis::application::LoadOsgbTilesResult result = loadOsgbTilesUseCase.execute(request);
+    if (!result.success) {
+        std::cerr << "Failed to import OSGB tiles: " << result.errorMessage << std::endl;
+        printLoadFailures(result.failures);
+        std::cout << "OSGB discovered files: " << result.discoveredFilePaths.size() << std::endl;
+        std::cout << "OSGB selected files: " << result.selectedFilePaths.size() << std::endl;
+        return 1;
+    }
+
+    std::size_t addFailureCount = 0;
+    for (const gis::domain::ModelAsset& model : result.models) {
+        gis::application::AddModelToSceneRequest addRequest;
+        addRequest.model = model;
+        const gis::application::AddModelToSceneResult addResult = addModelToSceneUseCase.execute(addRequest);
+        if (!addResult.success) {
+            ++addFailureCount;
+        }
+    }
+
+    std::cout << "OSGB folder: " << folderPath << std::endl;
+    std::cout << "OSGB discovered files: " << result.discoveredFilePaths.size() << std::endl;
+    std::cout << "OSGB selected files: " << result.selectedFilePaths.size() << std::endl;
+    std::cout << "OSGB converted OBJ files: " << result.convertedObjPaths.size() << std::endl;
+    std::cout << "OSGB loaded models: " << result.models.size() << std::endl;
+    std::cout << "OSGB import failures: " << result.failures.size() << std::endl;
+    std::cout << "OSGB scene add failures: " << addFailureCount << std::endl;
+    std::cout << "Scene nodes: " << scene.nodes.size() << std::endl;
+    printLoadFailures(result.failures);
+
+    gis::infrastructure::OpenGLSceneRenderer renderer;
+    gis::ui::ViewportWidget viewport(scene, renderer);
+    refreshViewport(scene, renderer, viewport);
+    return addFailureCount == 0 ? 0 : 1;
+}
+
 // runTerrainBuildCheck verifies DEM/image loading, terrain mesh construction, scene insertion, and rendering.
 // Upstream: main passes DEM and image GeoTIFF paths plus optional build parameters.
 // Downstream: renderer adapter prepares the terrain node with texture and lighting metadata.
@@ -470,6 +538,10 @@ int main(int argc, char* argv[])
 
         if (argc >= 3 && argc <= 4 && std::string(argv[1]) == "--batch") {
             return runBatchModelLoadCheck(argv[2], parseRecursiveFlag(argc, argv));
+        }
+
+        if (argc >= 3 && argc <= 4 && std::string(argv[1]) == "--osgb") {
+            return runOsgbLoadCheck(argv[2], parseMaxTiles(argc, argv));
         }
 
         if (argc == 2) {
